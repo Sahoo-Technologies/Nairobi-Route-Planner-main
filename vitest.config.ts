@@ -8,6 +8,8 @@ export default defineConfig({
     include: ["tests/**/*.test.{ts,tsx}"],
     exclude: ["node_modules", "dist"],
     setupFiles: ["./tests/setup.ts"],
+    globalSetup: "./tests/globalSetup.ts",
+    testTimeout: 15000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

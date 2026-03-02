@@ -33,3 +33,5 @@ replit.nix
 migrations/
 .vercel
 .env*.local
+
+.env.test

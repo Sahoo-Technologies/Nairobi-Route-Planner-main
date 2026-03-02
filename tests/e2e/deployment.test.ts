@@ -200,8 +200,12 @@ describe("E2E: API serverless function validation", () => {
   });
 
   it("api/index.mjs bundle should contain handler export", () => {
-    const content = fs.readFileSync(path.join(ROOT, "api", "index.mjs"), "utf-8");
-    expect(content).toContain("handler");
+    let content = fs.readFileSync(path.join(ROOT, "api", "index.mjs"), "utf-8");
+    // some build tools insert null bytes between characters; strip them for text checks
+    const normalized = content.replace(/\u0000/g, "");
+    // look for the handler function or its default export
+    expect(normalized).toContain("handler");
+    expect(normalized).toMatch(/async function handler/);
   });
 });
 

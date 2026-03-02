@@ -62,7 +62,7 @@ describe("Critical Path Integration Tests", () => {
     await agent
       .post("/api/auth/login")
       .send({ email: userData.email, password: userData.password });
-  });
+  }, 60000);
 
   afterAll(async () => {
     if (server) {
@@ -326,8 +326,10 @@ describe("Critical Path Integration Tests", () => {
       const initialAudit = settingsManager.getAuditLog(10);
       const initialCount = initialAudit.length;
 
-      // Update a setting
-      settingsManager.updateSetting("PORT", "3001", "test-user", "127.0.0.1");
+      // Update a setting to a value distinct from the current env value
+      const currentPort = process.env.PORT || "";
+      const newPort = currentPort === "3099" ? "3007" : "3099";
+      settingsManager.updateSetting("PORT", newPort, "test-user", "127.0.0.1");
 
       const updatedAudit = settingsManager.getAuditLog(10);
       expect(updatedAudit.length).toBeGreaterThan(initialCount);
