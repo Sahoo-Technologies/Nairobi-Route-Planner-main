@@ -136,11 +136,11 @@ export default function SettingsPage() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [dirty, setDirty] = useState(false);
 
-  const { data, isLoading, isError } = useQuery<SettingsResponse>({
+  const { data, isLoading, isError, error } = useQuery<SettingsResponse>({
     queryKey: ["/api/admin/settings"],
     queryFn: async () => {
       const res = await fetch("/api/admin/settings", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load settings");
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return res.json();
     },
   });
@@ -188,16 +188,30 @@ export default function SettingsPage() {
   };
 
   if (isError) {
+    const errMsg = (error as Error)?.message || "Unknown error";
+    const is401 = errMsg.startsWith("401");
+    const is403 = errMsg.startsWith("403");
     return (
       <AdminLayout>
         <div className="flex flex-col gap-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>
-            Failed to load settings. Make sure you have admin access.
-          </AlertDescription>
-        </Alert>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error loading settings</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                {is401
+                  ? "Your session has expired. Please log out and log back in."
+                  : is403
+                  ? "Access denied. Only administrators can view settings."
+                  : `Failed to load settings: ${errMsg}`}
+              </p>
+              {(is401 || is403) && (
+                <p className="text-xs opacity-75">
+                  If you believe this is an error, contact your system administrator.
+                </p>
+              )}
+            </AlertDescription>
+          </Alert>
         </div>
       </AdminLayout>
     );

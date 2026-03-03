@@ -1,10 +1,19 @@
 /**
  * Configuration Management
- * 
+ *
  * Centralizes all application configuration with environment variable
  * defaults and validation. Moves hardcoded values to configurable
  * environment variables.
+ *
+ * NOTE: This file loads dotenv itself to solve an ESM module-scope hoisting
+ * issue: with "type": "module" in package.json, ESM imports run in dependency
+ * order which means this file initialises before dotenv.config() runs in
+ * server/index.ts.  Calling dotenv.config() here ensures env vars are set
+ * before ConfigManager reads them.
  */
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: ".env.local", override: false });
 
 interface DatabaseConfig {
   url: string;

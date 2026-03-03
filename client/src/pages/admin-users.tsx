@@ -89,7 +89,7 @@ export default function AdminUsersPage() {
   const [editUser, setEditUser] = useState<Record<string, unknown> | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; email: string } | null>(null);
 
-  const { data: usersList = [], isLoading, isError } = useQuery<Record<string, unknown>[]>({
+  const { data: usersList = [], isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: ["/api/admin/users"],
     queryFn: () => fetchList<Record<string, unknown>>("/api/admin/users"),
   });
@@ -184,14 +184,28 @@ export default function AdminUsersPage() {
   }, [usersList]);
 
   if (isError) {
+    const errMsg = (error as Error)?.message || "Unknown error";
+    const is401 = errMsg.startsWith("401");
+    const is403 = errMsg.startsWith("403");
     return (
       <AdminLayout>
         <div className="flex flex-col gap-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>
-              Failed to load users. Make sure you have admin or manager access.
+            <AlertTitle>Error loading users</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                {is401
+                  ? "Your session has expired. Please log out and log back in."
+                  : is403
+                  ? "Access denied. Make sure your account has admin or manager role."
+                  : `Failed to load users: ${errMsg}`}
+              </p>
+              {(is401 || is403) && (
+                <p className="text-xs opacity-75">
+                  If you believe this is an error, contact your system administrator.
+                </p>
+              )}
             </AlertDescription>
           </Alert>
         </div>
