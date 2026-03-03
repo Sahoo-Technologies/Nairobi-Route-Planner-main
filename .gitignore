@@ -35,3 +35,6 @@ migrations/
 .env*.local
 
 .env.test
+
+tmp_*.cjs
+tmp_*.js
