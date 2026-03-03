@@ -349,10 +349,10 @@ function ProductForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Supplier</Label>
-          <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v })}>
+          <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v === "__none" ? "" : v })}>
             <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">None</SelectItem>
+              <SelectItem value="__none">None</SelectItem>
               {suppliers.map((s: any) => (
                 <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
               ))}

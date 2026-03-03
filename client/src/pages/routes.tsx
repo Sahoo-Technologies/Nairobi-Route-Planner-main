@@ -237,14 +237,14 @@ export default function RoutesPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Assign Driver</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={(v) => field.onChange(v === "__none" ? "" : v)} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger data-testid="select-driver">
                                 <SelectValue placeholder="Select driver" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">Unassigned</SelectItem>
+                              <SelectItem value="__none">Unassigned</SelectItem>
                               {drivers.filter(d => d.status === "available").map(driver => (
                                 <SelectItem key={driver.id} value={driver.id}>
                                   {driver.name}

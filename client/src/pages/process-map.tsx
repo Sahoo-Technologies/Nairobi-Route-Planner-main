@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import {
   User, ClipboardList, Camera, MapPin, Table2, Clock,
   Package, Truck, CheckCircle2, ArrowDown,
@@ -134,6 +136,31 @@ const customerTypes = [
 ];
 
 export default function ProcessMapPage() {
+  const { user } = useAuth();
+  const isStrictAdmin = user?.role === "admin";
+  const { data: appSettings } = useQuery({
+    queryKey: ["/api/app-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/app-settings", { credentials: "include" });
+      if (!res.ok) return { processMapVisibleToUsers: false };
+      return res.json();
+    },
+  });
+
+  const processMapVisible = appSettings?.processMapVisibleToUsers ?? false;
+
+  if (!isStrictAdmin && !processMapVisible) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <PageHeader title="Distribution Process Map" description="Veew Distributors — end-to-end order-to-delivery workflow" />
+        <Card>
+          <CardContent>
+            <p className="text-sm">The process map is currently hidden. Contact your administrator to enable access for users (used for onboarding).</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-6 p-6">
       <PageHeader

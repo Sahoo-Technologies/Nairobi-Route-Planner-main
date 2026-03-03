@@ -207,6 +207,14 @@ const SETTINGS_CONFIG: SettingConfig[] = [
     editable: true,
     description: "CORS allowed origins",
   },
+  // Application feature flags
+  {
+    name: "PROCESS_MAP_VISIBLE_TO_USERS",
+    sensitive: false,
+    editable: true,
+    description: "Allow non-admin users to view the process map (true/false)",
+    validator: (value) => ["true", "false", ""].includes(value),
+  },
 ];
 
 export interface SecureSetting {

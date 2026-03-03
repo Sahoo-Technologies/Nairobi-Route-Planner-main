@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 import {
   Settings,
   Save,
@@ -27,6 +28,7 @@ import {
   Smartphone,
   CreditCard,
   Bitcoin,
+  GitBranch,
 } from "lucide-react";
 
 interface SettingsResponse {
@@ -244,6 +246,8 @@ export default function SettingsPage() {
           </Alert>
         )}
 
+        <FeatureFlagsCard />
+
         {isLoading ? (
           <div className="space-y-6">
             <Skeleton className="h-10 w-64" />
@@ -442,4 +446,74 @@ function getHint(key: string): string {
       "Allowed origin(s) for cross-origin requests. Use your frontend domain.",
   };
   return map[key] || "";
+}
+
+// --- Feature Flags Card ---
+function FeatureFlagsCard() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: appSettings, isLoading } = useQuery<{ processMapVisibleToUsers: boolean }>({
+    queryKey: ["/api/app-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/app-settings", { credentials: "include" });
+      if (!res.ok) return { processMapVisibleToUsers: false };
+      return res.json();
+    },
+    staleTime: 1000 * 60,
+  });
+
+  const flagMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ PROCESS_MAP_VISIBLE_TO_USERS: enabled ? "true" : "false" }),
+      });
+      if (!res.ok) throw new Error("Failed to update flag");
+      return res.json();
+    },
+    onSuccess: (_data, enabled) => {
+      qc.invalidateQueries({ queryKey: ["/api/app-settings"] });
+      toast({
+        title: "Onboarding visibility updated",
+        description: `Process Map is now ${enabled ? "visible to all users" : "hidden (admin only)"}.`,
+      });
+    },
+    onError: () => toast({ title: "Failed to update feature flag", variant: "destructive" }),
+  });
+
+  const enabled = appSettings?.processMapVisibleToUsers ?? false;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <GitBranch className="h-5 w-5" />
+          Feature Flags — Onboarding
+        </CardTitle>
+        <CardDescription>
+          Control which features are accessible to non-admin users during onboarding.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="space-y-0.5">
+            <Label className="text-base font-medium">Distribution Process Map</Label>
+            <p className="text-sm text-muted-foreground">
+              When enabled, all authenticated users can view the end-to-end order-to-delivery
+              workflow (onboarding guide). When disabled, only admins can see it.
+            </p>
+          </div>
+          <Switch
+            checked={enabled}
+            disabled={isLoading || flagMutation.isPending}
+            onCheckedChange={(v) => flagMutation.mutate(v)}
+            aria-label="Toggle process map visibility for users"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
 }

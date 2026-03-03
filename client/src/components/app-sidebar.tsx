@@ -4,6 +4,7 @@ import {
   Settings, Package, Warehouse, Building2, ShoppingCart, UserCheck, CreditCard,
   LayoutGrid, Wallet, ChevronRight, type LucideIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/use-auth";
+import Logo from "@/components/logo";
 
 interface NavItem {
   title: string;
@@ -140,6 +142,18 @@ function NavGroupSection({ group }: { group: NavGroup }) {
 export function AppSidebar() {
   const { user, isAdmin, isManager, logout } = useAuth();
 
+  const { data: appSettings } = useQuery({
+    queryKey: ["/api/app-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/app-settings", { credentials: "include" });
+      if (!res.ok) return { processMapVisibleToUsers: false };
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const processMapVisible = appSettings?.processMapVisibleToUsers ?? false;
+
   const userInitials = user?.firstName && user?.lastName
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
     : user?.email?.[0]?.toUpperCase() || "U";
@@ -152,22 +166,23 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <Truck className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-bold tracking-tight text-sidebar-foreground">Veew</h2>
-            <p className="text-[11px] text-muted-foreground">Route Optimization</p>
-          </div>
+      <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Logo className="h-8 w-auto" />
         </div>
+        <p className="text-[11px] text-muted-foreground mt-0.5">Route Optimization</p>
       </SidebarHeader>
 
       <SidebarContent className="px-1">
-        {navGroups.map((group) => (
-          <NavGroupSection key={group.label} group={group} />
-        ))}
+        {navGroups.map((group) => {
+          // Hide Process Map for non-admins when feature flag disabled
+          const filtered = group.items.filter((item) => {
+            if (item.url === "/process-map" && user?.role !== "admin" && !processMapVisible) return false;
+            return true;
+          });
+          if (filtered.length === 0) return null;
+          return <NavGroupSection key={group.label} group={{ ...group, items: filtered }} />;
+        })}
         {isAdmin && <NavGroupSection group={adminGroup} />}
         {!isAdmin && isManager && <NavGroupSection group={managerGroup} />}
       </SidebarContent>

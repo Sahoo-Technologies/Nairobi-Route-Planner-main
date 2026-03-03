@@ -94,6 +94,16 @@ export async function registerRoutes(
   // Set up authentication BEFORE other routes
   await setupAuth(app);
 
+  // Public (authenticated) app-level settings
+  app.get("/api/app-settings", isAuthenticated, async (_req, res) => {
+    try {
+      const visible = (process.env.PROCESS_MAP_VISIBLE_TO_USERS || "false") === "true";
+      res.json({ processMapVisibleToUsers: visible });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch app settings" });
+    }
+  });
+
   // CORS — restrict to same-origin in production
   const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())

@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { CommandPalette } from "@/components/command-palette";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { Separator } from "@/components/ui/separator";
+import Logo from "@/components/logo";
 import { usePageTitle } from "@/hooks/use-page-title";
 
 // Eagerly loaded (always visible)
@@ -113,7 +114,10 @@ function AuthenticatedApp() {
           <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4" role="banner">
             <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
             <Separator orientation="vertical" className="h-5" />
-            <PageBreadcrumb />
+            <div className="flex items-center gap-3">
+              <Logo className="h-7 w-auto" />
+              <PageBreadcrumb />
+            </div>
             <div className="ml-auto flex items-center gap-2">
               <CommandPalette />
               <ThemeToggle />

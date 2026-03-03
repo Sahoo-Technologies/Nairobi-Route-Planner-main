@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   CommandDialog,
   CommandEmpty,
@@ -47,7 +48,19 @@ const adminPages = [
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+
+  const { data: appSettings } = useQuery({
+    queryKey: ["/api/app-settings"],
+    queryFn: async () => {
+      const res = await fetch("/api/app-settings", { credentials: "include" });
+      if (!res.ok) return { processMapVisibleToUsers: false };
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const processMapVisible = appSettings?.processMapVisibleToUsers ?? false;
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -68,7 +81,12 @@ export function CommandPalette() {
     [setLocation]
   );
 
-  const allPages = isAdmin ? [...pages, ...adminPages] : pages;
+  const filteredPages = pages.filter((p) => {
+    if (p.path === "/process-map" && user?.role !== "admin" && !processMapVisible) return false;
+    return true;
+  });
+
+  const allPages = isAdmin ? [...filteredPages, ...adminPages] : filteredPages;
   const groups = Array.from(new Set(allPages.map((p) => p.group)));
 
   return (

@@ -371,10 +371,10 @@ function StockMovementForm({
       </div>
       <div>
         <Label>Reference Type</Label>
-        <Select value={form.referenceType} onValueChange={(v) => setForm({ ...form, referenceType: v })}>
+        <Select value={form.referenceType} onValueChange={(v) => setForm({ ...form, referenceType: v === "__none" ? "" : v })}>
           <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">None</SelectItem>
+            <SelectItem value="__none">None</SelectItem>
             <SelectItem value="order">Order</SelectItem>
             <SelectItem value="procurement">Procurement</SelectItem>
             <SelectItem value="adjustment">Manual Adjustment</SelectItem>

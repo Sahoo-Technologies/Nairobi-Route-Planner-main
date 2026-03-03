@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Truck, Loader2, Eye, EyeOff, MapPin, Route, Target } from "lucide-react";
+import Logo from "@/components/logo";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -52,10 +53,7 @@ export default function LoginPage() {
 
         <div className="relative">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 backdrop-blur-sm">
-              <Truck className="h-6 w-6 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">Veew Distributors</span>
+            <Logo className="h-9 w-auto drop-shadow-lg" />
           </div>
         </div>
 
@@ -97,10 +95,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <Truck className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">Veew Distributors</span>
+            <Logo className="h-9 w-auto" />
           </div>
 
           <div className="space-y-2">
