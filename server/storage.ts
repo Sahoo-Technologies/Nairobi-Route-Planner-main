@@ -14,6 +14,7 @@ import {
   type Dispatch, type InsertDispatch,
   type Parcel, type InsertParcel,
   type Payment, type InsertPayment,
+  type OrderEditRequest, type InsertOrderEditRequest,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -115,6 +116,13 @@ export interface IStorage {
   getPayment(id: string): Promise<Payment | undefined>;
   createPayment(payment: InsertPayment): Promise<Payment>;
   updatePayment(id: string, payment: Partial<InsertPayment>): Promise<Payment | undefined>;
+
+  // Order Edit Requests
+  getAllOrderEditRequests(status?: string): Promise<OrderEditRequest[]>;
+  getOrderEditRequest(id: string): Promise<OrderEditRequest | undefined>;
+  getOrderEditRequestsByOrder(orderId: string): Promise<OrderEditRequest[]>;
+  createOrderEditRequest(req: InsertOrderEditRequest): Promise<OrderEditRequest>;
+  updateOrderEditRequest(id: string, data: Partial<InsertOrderEditRequest>): Promise<OrderEditRequest | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -133,6 +141,7 @@ export class MemStorage implements IStorage {
   private dispatchesMap: Map<string, Dispatch>;
   private parcelsMap: Map<string, Parcel>;
   private paymentsMap: Map<string, Payment>;
+  private orderEditRequestsMap: Map<string, OrderEditRequest>;
 
   constructor() {
     this.shops = new Map();
@@ -150,6 +159,7 @@ export class MemStorage implements IStorage {
     this.dispatchesMap = new Map();
     this.parcelsMap = new Map();
     this.paymentsMap = new Map();
+    this.orderEditRequestsMap = new Map();
     
     this.seedData();
   }
@@ -713,6 +723,31 @@ export class MemStorage implements IStorage {
     const updated = { ...p, ...updates };
     this.paymentsMap.set(id, updated as Payment);
     return updated as Payment;
+  }
+
+  // ---- Order Edit Requests ----
+  async getAllOrderEditRequests(status?: string): Promise<OrderEditRequest[]> {
+    const all = Array.from(this.orderEditRequestsMap.values());
+    return status ? all.filter(r => r.status === status) : all;
+  }
+  async getOrderEditRequest(id: string): Promise<OrderEditRequest | undefined> {
+    return this.orderEditRequestsMap.get(id);
+  }
+  async getOrderEditRequestsByOrder(orderId: string): Promise<OrderEditRequest[]> {
+    return Array.from(this.orderEditRequestsMap.values()).filter(r => r.orderId === orderId);
+  }
+  async createOrderEditRequest(data: InsertOrderEditRequest): Promise<OrderEditRequest> {
+    const id = randomUUID();
+    const req = { ...data, id, createdAt: new Date(), reviewedAt: null } as OrderEditRequest;
+    this.orderEditRequestsMap.set(id, req);
+    return req;
+  }
+  async updateOrderEditRequest(id: string, updates: Partial<InsertOrderEditRequest>): Promise<OrderEditRequest | undefined> {
+    const r = this.orderEditRequestsMap.get(id);
+    if (!r) return undefined;
+    const updated = { ...r, ...updates, reviewedAt: new Date() } as OrderEditRequest;
+    this.orderEditRequestsMap.set(id, updated);
+    return updated;
   }
 }
 

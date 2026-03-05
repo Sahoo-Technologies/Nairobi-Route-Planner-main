@@ -14,9 +14,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Plus, ClipboardList, Clock, Package, CheckCircle2,
-  CreditCard, Search, Filter, Wallet
+  CreditCard, Search, Filter, Wallet, Pencil, Bell, CheckCheck, X
 } from "lucide-react";
 import PaymentGatewaySelector from "@/components/payment-gateway";
 
@@ -36,10 +37,14 @@ const statusFlow = ["pending", "confirmed", "processing", "packed", "dispatched"
 export default function OrdersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isManager } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [payDialogOrder, setPayDialogOrder] = useState<any>(null);
+  const [editRequestOrder, setEditRequestOrder] = useState<any>(null);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewNote, setReviewNote] = useState("");
 
   const { data: orders = [], isLoading, isError } = useQuery<any[]>({
     queryKey: ["/api/orders"],
@@ -89,6 +94,71 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       toast({ title: "Order status updated" });
     },
+  });
+
+  // ---------- Edit Requests ----------
+  const { data: editRequests = [] } = useQuery<any[]>({
+    queryKey: ["/api/orders/edit-requests"],
+    queryFn: () => fetch("/api/orders/edit-requests", { credentials: "include" }).then(r => r.json()),
+    enabled: isManager,
+  });
+  const pendingRequests = editRequests.filter((r: any) => r.status === "pending");
+
+  const submitEditRequest = useMutation({
+    mutationFn: async ({ orderId, changes, reason }: { orderId: string; changes: Record<string, unknown>; reason: string }) => {
+      const res = await fetch(`/api/orders/${orderId}/edit-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ changes, reason }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      setEditRequestOrder(null);
+      toast({ title: "Edit request submitted", description: "A manager will review your request." });
+    },
+    onError: (e: Error) => toast({ title: "Failed to submit request", description: e.message, variant: "destructive" }),
+  });
+
+  const approveEditRequest = useMutation({
+    mutationFn: async (reqId: string) => {
+      const res = await fetch(`/api/orders/edit-requests/${reqId}/approve`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reviewNote }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders/edit-requests"] });
+      setReviewNote("");
+      toast({ title: "Edit approved", description: "Order has been updated." });
+    },
+    onError: (e: Error) => toast({ title: "Approval failed", description: e.message, variant: "destructive" }),
+  });
+
+  const rejectEditRequest = useMutation({
+    mutationFn: async (reqId: string) => {
+      const res = await fetch(`/api/orders/edit-requests/${reqId}/reject`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reviewNote }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/orders/edit-requests"] });
+      setReviewNote("");
+      toast({ title: "Edit request rejected" });
+    },
+    onError: (e: Error) => toast({ title: "Rejection failed", description: e.message, variant: "destructive" }),
   });
 
   const filtered = orders.filter((o: any) => {
@@ -144,6 +214,22 @@ export default function OrdersPage() {
             <Clock className="h-3 w-3" />
             Past 4 PM Cutoff
           </Badge>
+        )}
+        {/* Managers/admins: review pending edit requests */}
+        {isManager && (
+          <Button
+            variant={pendingRequests.length > 0 ? "default" : "outline"}
+            onClick={() => setReviewDialogOpen(true)}
+            className="relative"
+          >
+            <Bell className="h-4 w-4 mr-2" />
+            Edit Requests
+            {pendingRequests.length > 0 && (
+              <Badge className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0">
+                {pendingRequests.length}
+              </Badge>
+            )}
+          </Button>
         )}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -257,7 +343,7 @@ export default function OrdersPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap">
                           {nextStatus && order.status !== "cancelled" && (
                             <Button
                               size="sm"
@@ -277,6 +363,15 @@ export default function OrdersPage() {
                               <Wallet className="h-3 w-3 mr-1" /> Pay
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-blue-600"
+                            onClick={() => setEditRequestOrder(order)}
+                            title="Request an edit (requires manager approval)"
+                          >
+                            <Pencil className="h-3 w-3 mr-1" /> Edit
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -309,6 +404,110 @@ export default function OrdersPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Request Edit Dialog */}
+      {editRequestOrder && (
+        <OrderEditRequestDialog
+          order={editRequestOrder}
+          shops={shops}
+          salespersons={salespersons}
+          isLoading={submitEditRequest.isPending}
+          onClose={() => setEditRequestOrder(null)}
+          onSubmit={(changes, reason) =>
+            submitEditRequest.mutate({ orderId: editRequestOrder.id, changes, reason })
+          }
+        />
+      )}
+
+      {/* Review Edit Requests Dialog (managers/admins only) */}
+      {isManager && (
+        <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" /> Order Edit Requests
+              </DialogTitle>
+            </DialogHeader>
+            {editRequests.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-4 text-center">No edit requests yet.</p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {editRequests.map((req: any) => (
+                  <Card key={req.id} className="border">
+                    <CardContent className="p-4 flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-sm">
+                            Order: {orders.find((o: any) => o.id === req.orderId)?.orderNumber || req.orderId}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Requested by {req.requestedByName} · {new Date(req.createdAt).toLocaleString()}
+                          </p>
+                          {req.reason && (
+                            <p className="text-xs mt-1 italic">"{req.reason}"</p>
+                          )}
+                        </div>
+                        <Badge
+                          className={
+                            req.status === "pending" ? "bg-yellow-100 text-yellow-800" :
+                            req.status === "approved" ? "bg-green-100 text-green-800" :
+                            "bg-red-100 text-red-800"
+                          }
+                        >
+                          {req.status}
+                        </Badge>
+                      </div>
+
+                      <div className="rounded-md bg-muted p-2 text-xs font-mono overflow-x-auto">
+                        <p className="font-semibold mb-1 text-muted-foreground">Proposed changes:</p>
+                        {Object.entries(req.changes as Record<string, any>).map(([k, v]) => (
+                          <div key={k}><span className="text-blue-600">{k}</span>: {String(v)}</div>
+                        ))}
+                      </div>
+
+                      {req.status !== "pending" && req.reviewedByName && (
+                        <p className="text-xs text-muted-foreground">
+                          {req.status === "approved" ? "Approved" : "Rejected"} by {req.reviewedByName}
+                          {req.reviewNote ? ` · "${req.reviewNote}"` : ""}
+                        </p>
+                      )}
+
+                      {req.status === "pending" && (
+                        <div className="flex flex-col gap-2">
+                          <Input
+                            placeholder="Review note (optional)"
+                            value={reviewNote}
+                            onChange={(e) => setReviewNote(e.target.value)}
+                            className="text-xs h-8"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              disabled={approveEditRequest.isPending}
+                              onClick={() => approveEditRequest.mutate(req.id)}
+                            >
+                              <CheckCheck className="h-3 w-3 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={rejectEditRequest.isPending}
+                              onClick={() => rejectEditRequest.mutate(req.id)}
+                            >
+                              <X className="h-3 w-3 mr-1" /> Reject
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -319,6 +518,122 @@ function getNextStatus(current: string): string | null {
   if (idx === -1 || idx >= flow.length - 1) return null;
   return flow[idx + 1];
 }
+
+// ---- Order Edit Request Dialog ----
+// Any user can propose changes; a manager must approve before the order is modified.
+function OrderEditRequestDialog({
+  order, shops, salespersons, isLoading, onClose, onSubmit,
+}: {
+  order: any;
+  shops: any[];
+  salespersons: any[];
+  isLoading: boolean;
+  onClose: () => void;
+  onSubmit: (changes: Record<string, unknown>, reason: string) => void;
+}) {
+  const [form, setForm] = useState({
+    shopId: order.shopId || "",
+    salespersonId: order.salespersonId || "",
+    totalAmount: String(order.totalAmount || ""),
+    notes: order.notes || "",
+    deliveryDate: order.deliveryDate || "",
+    status: order.status || "pending",
+  });
+  const [reason, setReason] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Only include fields that actually changed
+    const changes: Record<string, unknown> = {};
+    if (form.shopId !== order.shopId) changes.shopId = form.shopId;
+    if (form.salespersonId !== order.salespersonId) changes.salespersonId = form.salespersonId;
+    if (String(form.totalAmount) !== String(order.totalAmount)) changes.totalAmount = parseFloat(form.totalAmount);
+    if (form.notes !== (order.notes || "")) changes.notes = form.notes;
+    if (form.deliveryDate !== (order.deliveryDate || "")) changes.deliveryDate = form.deliveryDate;
+    if (form.status !== order.status) changes.status = form.status;
+    if (Object.keys(changes).length === 0) return;
+    onSubmit(changes, reason);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4" /> Request Edit — {order.orderNumber}
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2 mb-2">
+          Changes will only be applied after a manager or admin approves this request.
+        </p>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <Label>Customer (Shop)</Label>
+            <Select value={form.shopId} onValueChange={(v) => setForm({ ...form, shopId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {shops.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Salesperson</Label>
+            <Select value={form.salespersonId} onValueChange={(v) => setForm({ ...form, salespersonId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {salespersons.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Total Amount (KES)</Label>
+            <Input type="number" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} />
+          </div>
+          <div>
+            <Label>Delivery Date</Label>
+            <Input type="date" value={form.deliveryDate} onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })} />
+          </div>
+          <div>
+            <Label>Status</Label>
+            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[...statusFlow, "cancelled"].map((s) => (
+                  <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          </div>
+          <div>
+            <Label>Reason for edit <span className="text-muted-foreground">(required)</span></Label>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why does this order need to be changed?"
+              required
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={isLoading || !reason.trim()}>
+              {isLoading ? "Submitting..." : "Submit Request"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 
 function OrderForm({
   shops,

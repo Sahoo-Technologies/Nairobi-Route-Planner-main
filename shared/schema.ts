@@ -393,3 +393,26 @@ export const payments = pgTable("payments", {
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, confirmedAt: true });
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type Payment = typeof payments.$inferSelect;
+
+// ============ ORDER EDIT REQUESTS ============
+// Users submit changes; a manager/admin must approve before the order is updated.
+export const orderEditRequests = pgTable("order_edit_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull(),
+  requestedBy: varchar("requested_by").notNull(),       // userId
+  requestedByName: text("requested_by_name"),
+  status: text("status").notNull().default("pending"),  // pending | approved | rejected
+  changes: jsonb("changes").notNull(),                  // Partial<InsertOrder> to apply on approval
+  reason: text("reason"),                               // why the edit is requested
+  reviewedBy: varchar("reviewed_by"),
+  reviewedByName: text("reviewed_by_name"),
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertOrderEditRequestSchema = createInsertSchema(orderEditRequests).omit({
+  id: true, createdAt: true, reviewedAt: true,
+});
+export type InsertOrderEditRequest = z.infer<typeof insertOrderEditRequestSchema>;
+export type OrderEditRequest = typeof orderEditRequests.$inferSelect;

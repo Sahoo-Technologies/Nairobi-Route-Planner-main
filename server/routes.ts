@@ -18,8 +18,8 @@ import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSc
   insertProductSchema, insertSupplierSchema, insertProcurementSchema,
   insertSalespersonSchema, insertOrderSchema, insertOrderItemSchema,
   insertDispatchSchema, insertParcelSchema, insertPaymentSchema,
-  insertStockMovementSchema, insertInventorySchema,
-  type Shop
+  insertStockMovementSchema, insertInventorySchema, insertOrderEditRequestSchema,
+  type Shop, type InsertOrder
 } from "@shared/schema";
 import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated, isAdmin, isManager, hashPassword, getUserRole } from "./auth";
 import { getAllUsers, createUser, updateUser, deleteUserById } from "./auth";
@@ -624,7 +624,7 @@ export async function registerRoutes(
       res.status(201).json(await storage.createOrder(parsed.data));
     } catch { res.status(500).json({ error: "Failed to create order" }); }
   });
-  app.patch("/api/orders/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/orders/:id", isManager, async (req, res) => {
     try {
       const parsed = insertOrderSchema.partial().safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.issues });
@@ -638,6 +638,88 @@ export async function registerRoutes(
       if (!await storage.deleteOrder(req.params.id)) return res.status(404).json({ error: "Order not found" });
       res.status(204).send();
     } catch { res.status(500).json({ error: "Failed to delete order" }); }
+  });
+
+  // ---- Order Edit Requests ----
+  // Any authenticated user submits a change request against an order.
+  app.post("/api/orders/:id/edit-requests", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const order = await storage.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      const { changes, reason } = req.body;
+      if (!changes || typeof changes !== "object") {
+        return res.status(400).json({ error: "'changes' object is required" });
+      }
+      const userId = (req.session as any).userId as string;
+      const allUsers = await getAllUsers();
+      const user = allUsers.find((u: any) => u.id === userId);
+      const requestedByName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : userId;
+      const editReq = await storage.createOrderEditRequest({
+        orderId: req.params.id,
+        requestedBy: userId,
+        requestedByName,
+        status: "pending",
+        changes,
+        reason: reason || null,
+      });
+      res.status(201).json(editReq);
+    } catch { res.status(500).json({ error: "Failed to submit edit request" }); }
+  });
+
+  // Managers/admins: list all edit requests (optionally filtered by status)
+  app.get("/api/orders/edit-requests", isManager, async (req: Request, res: Response) => {
+    try {
+      const status = req.query.status as string | undefined;
+      res.json(await storage.getAllOrderEditRequests(status));
+    } catch { res.status(500).json({ error: "Failed to fetch edit requests" }); }
+  });
+
+  // List edit requests for a specific order
+  app.get("/api/orders/:id/edit-requests", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      res.json(await storage.getOrderEditRequestsByOrder(req.params.id));
+    } catch { res.status(500).json({ error: "Failed to fetch edit requests" }); }
+  });
+
+  // Approve — applies the stored changes to the order
+  app.patch("/api/orders/edit-requests/:reqId/approve", isManager, async (req: Request, res: Response) => {
+    try {
+      const editReq = await storage.getOrderEditRequest(req.params.reqId);
+      if (!editReq) return res.status(404).json({ error: "Edit request not found" });
+      if (editReq.status !== "pending") return res.status(400).json({ error: "Request already reviewed" });
+      await storage.updateOrder(editReq.orderId, editReq.changes as Partial<InsertOrder>);
+      const userId = (req.session as any).userId as string;
+      const allUsers = await getAllUsers();
+      const reviewer = allUsers.find((u: any) => u.id === userId);
+      const reviewedByName = reviewer ? `${reviewer.firstName || ""} ${reviewer.lastName || ""}`.trim() : userId;
+      const updated = await storage.updateOrderEditRequest(req.params.reqId, {
+        status: "approved",
+        reviewedBy: userId,
+        reviewedByName,
+        reviewNote: req.body.reviewNote || null,
+      });
+      res.json(updated);
+    } catch { res.status(500).json({ error: "Failed to approve edit request" }); }
+  });
+
+  // Reject — changes are NOT applied
+  app.patch("/api/orders/edit-requests/:reqId/reject", isManager, async (req: Request, res: Response) => {
+    try {
+      const editReq = await storage.getOrderEditRequest(req.params.reqId);
+      if (!editReq) return res.status(404).json({ error: "Edit request not found" });
+      if (editReq.status !== "pending") return res.status(400).json({ error: "Request already reviewed" });
+      const userId = (req.session as any).userId as string;
+      const allUsers = await getAllUsers();
+      const reviewer = allUsers.find((u: any) => u.id === userId);
+      const reviewedByName = reviewer ? `${reviewer.firstName || ""} ${reviewer.lastName || ""}`.trim() : userId;
+      const updated = await storage.updateOrderEditRequest(req.params.reqId, {
+        status: "rejected",
+        reviewedBy: userId,
+        reviewedByName,
+        reviewNote: req.body.reviewNote || null,
+      });
+      res.json(updated);
+    } catch { res.status(500).json({ error: "Failed to reject edit request" }); }
   });
 
   // Order Items
