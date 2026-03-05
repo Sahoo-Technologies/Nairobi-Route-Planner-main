@@ -26,7 +26,7 @@ const productCategories = [
   "personal_care", "cleaning", "stationery", "other"
 ];
 
-const unitTypes = ["piece", "case", "crate", "kg", "litre", "pack", "box", "dozen"];
+const unitTypes = ["piece", "case", "crate", "kg", "litre", "pack", "box", "dozen", "bale"];
 
 export default function ProductsPage() {
   const { toast } = useToast();

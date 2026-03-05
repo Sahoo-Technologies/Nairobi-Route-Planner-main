@@ -193,7 +193,7 @@ export const products = pgTable("products", {
   category: text("category").notNull(), // beverages, snacks, household, etc.
   unitPrice: real("unit_price").notNull(),
   costPrice: real("cost_price").notNull().default(0),
-  unit: text("unit").notNull().default("piece"), // piece, case, crate, kg, litre
+  unit: text("unit").notNull().default("piece"), // piece, case, crate, kg, litre, bale
   description: text("description"),
   supplierId: varchar("supplier_id"),
   reorderLevel: integer("reorder_level").notNull().default(10),
