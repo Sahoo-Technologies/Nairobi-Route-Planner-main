@@ -75,6 +75,21 @@ export default function PaymentGatewaySelector({
   });
 
   // create the payment record first, then initiate the gateway
+  // Safely parse a response as JSON — returns the JSON data or throws a clean error
+  async function safeJson(res: Response, fallbackMsg: string): Promise<any> {
+    const text = await res.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Server returned HTML or plain text (e.g. crash, proxy error)
+      const preview = text.replace(/<[^>]*>/g, "").trim().slice(0, 120);
+      throw new Error(preview || fallbackMsg);
+    }
+    if (!res.ok) throw new Error(data?.error || data?.message || fallbackMsg);
+    return data;
+  }
+
   const createAndInitiate = useMutation({
     mutationFn: async (gateway: GatewayType) => {
       setError(null);
@@ -95,17 +110,15 @@ export default function PaymentGatewaySelector({
           status: "pending",
         }),
       });
-      if (!createRes.ok) throw new Error("Failed to create payment record");
-      const payment = await createRes.json();
+      const payment = await safeJson(createRes, "Failed to create payment record");
 
       // 2. Initiate the specific gateway
-      let initRes: Response;
       let initData: any;
 
       switch (gateway) {
         case "mpesa": {
           if (!phone) throw new Error("Phone number is required for M-Pesa");
-          initRes = await fetch("/api/payments/mpesa/initiate", {
+          const initRes = await fetch("/api/payments/mpesa/initiate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
@@ -116,13 +129,12 @@ export default function PaymentGatewaySelector({
               orderNumber,
             }),
           });
-          initData = await initRes.json();
-          if (!initRes.ok) throw new Error(initData.error || "M-Pesa STK Push failed");
+          initData = await safeJson(initRes, "M-Pesa STK Push failed");
           setStkSent(true);
           break;
         }
         case "flutterwave": {
-          initRes = await fetch("/api/payments/flutterwave/initiate", {
+          const initRes = await fetch("/api/payments/flutterwave/initiate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
@@ -136,13 +148,12 @@ export default function PaymentGatewaySelector({
               orderNumber,
             }),
           });
-          initData = await initRes.json();
-          if (!initRes.ok) throw new Error(initData.error || "Flutterwave payment failed");
+          initData = await safeJson(initRes, "Flutterwave payment failed");
           setPaymentLink(initData.paymentLink);
           break;
         }
         case "crypto": {
-          initRes = await fetch("/api/payments/crypto/initiate", {
+          const initRes = await fetch("/api/payments/crypto/initiate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
@@ -155,8 +166,7 @@ export default function PaymentGatewaySelector({
               customerEmail: email,
             }),
           });
-          initData = await initRes.json();
-          if (!initRes.ok) throw new Error(initData.error || "Crypto payment failed");
+          initData = await safeJson(initRes, "Crypto payment failed");
           setPaymentLink(initData.hostedUrl);
           break;
         }
