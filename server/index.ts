@@ -72,21 +72,20 @@ export async function startServer() {
   
   await registerRoutes(httpServer, app);
 
-  // 404 handler (must be before error handler)
-  app.use(notFoundHandler);
-
-  // Centralized error handling middleware (must be last)
-  app.use(errorHandler);
-
-  // only setup vite when running in development (not in production or tests)
-  // this ensures the test suite doesn't spawn a file-watching dev server that
-  // can restart the app unexpectedly during automated runs.
+  // Setup Vite (dev) or static file serving (prod) BEFORE 404/error handlers
+  // so the SPA can handle client-side routes
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else if (process.env.NODE_ENV === "development") {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  // 404 handler (must be after routes AND vite/static)
+  app.use(notFoundHandler);
+
+  // Centralized error handling middleware (must be last)
+  app.use(errorHandler);
 
   // Avoid binding to actual network in test environment to prevent socket errors
   if (process.env.NODE_ENV !== "test") {
