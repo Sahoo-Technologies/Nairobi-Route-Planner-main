@@ -4,7 +4,7 @@ import {
   shops, drivers, routes, targets,
   products, inventory, stockMovements, suppliers,
   procurements, salespersons, orders, orderItems,
-  dispatches, parcels, payments,
+  dispatches, parcels, payments, orderEditRequests,
   type Shop, type InsertShop,
   type Driver, type InsertDriver,
   type Route, type InsertRoute,
@@ -20,6 +20,7 @@ import {
   type Dispatch, type InsertDispatch,
   type Parcel, type InsertParcel,
   type Payment, type InsertPayment,
+  type OrderEditRequest, type InsertOrderEditRequest,
 } from "@shared/schema";
 import type { IStorage, PaginationParams } from "./storage";
 
@@ -311,6 +312,32 @@ export class DatabaseStorage implements IStorage {
   }
   async updatePayment(id: string, updates: Partial<InsertPayment>): Promise<Payment | undefined> {
     const [row] = await db.update(payments).set(updates).where(eq(payments.id, id)).returning();
+    return row;
+  }
+
+  // ============ ORDER EDIT REQUESTS ============
+  async getAllOrderEditRequests(status?: string): Promise<OrderEditRequest[]> {
+    if (status) {
+      return db.select().from(orderEditRequests).where(eq(orderEditRequests.status, status)).orderBy(desc(orderEditRequests.createdAt));
+    }
+    return db.select().from(orderEditRequests).orderBy(desc(orderEditRequests.createdAt));
+  }
+  async getOrderEditRequest(id: string): Promise<OrderEditRequest | undefined> {
+    const [row] = await db.select().from(orderEditRequests).where(eq(orderEditRequests.id, id)).limit(1);
+    return row;
+  }
+  async getOrderEditRequestsByOrder(orderId: string): Promise<OrderEditRequest[]> {
+    return db.select().from(orderEditRequests).where(eq(orderEditRequests.orderId, orderId)).orderBy(desc(orderEditRequests.createdAt));
+  }
+  async createOrderEditRequest(data: InsertOrderEditRequest): Promise<OrderEditRequest> {
+    const [row] = await db.insert(orderEditRequests).values(data).returning();
+    return row;
+  }
+  async updateOrderEditRequest(id: string, updates: Partial<InsertOrderEditRequest>): Promise<OrderEditRequest | undefined> {
+    const [row] = await db.update(orderEditRequests).set({
+      ...updates,
+      reviewedAt: updates.status === "approved" || updates.status === "rejected" ? new Date() : undefined,
+    }).where(eq(orderEditRequests.id, id)).returning();
     return row;
   }
 }

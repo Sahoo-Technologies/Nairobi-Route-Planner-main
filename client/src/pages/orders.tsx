@@ -99,10 +99,15 @@ export default function OrdersPage() {
   // ---------- Edit Requests ----------
   const { data: editRequests = [] } = useQuery<any[]>({
     queryKey: ["/api/orders/edit-requests"],
-    queryFn: () => fetch("/api/orders/edit-requests", { credentials: "include" }).then(r => r.json()),
+    queryFn: async () => {
+      const r = await fetch("/api/orders/edit-requests", { credentials: "include" });
+      if (!r.ok) return [];
+      const data = await r.json();
+      return Array.isArray(data) ? data : [];
+    },
     enabled: isManager,
   });
-  const pendingRequests = editRequests.filter((r: any) => r.status === "pending");
+  const pendingRequests = Array.isArray(editRequests) ? editRequests.filter((r: any) => r.status === "pending") : [];
 
   const submitEditRequest = useMutation({
     mutationFn: async ({ orderId, changes, reason }: { orderId: string; changes: Record<string, unknown>; reason: string }) => {
